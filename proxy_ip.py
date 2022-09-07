@@ -13,10 +13,19 @@ def init_proxy_pool(history):
     @param history: 历史存留可用IP list
     """
     global PROXY_IP_LIST
-    proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103890&port=1&ts=1&lb=4&pb=4&gm=4&regions='
+    # proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103890&port=1&ts=1&lb=4&pb=4&gm=4&regions='
+    proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103995&port=1&ts=1&lb=1&pb=4&gm=4&regions='
     json_str = get_url_content(proxy_url)
     proxy = json.loads(json_str)
     PROXY_IP_LIST = proxy['data'] + history
+    with open('proxy_ip_history.txt','a+') as f:
+        try:
+            f.write("\n".join([json.dumps(i) for i in PROXY_IP_LIST]+'\n'))
+            print('代理IP写入完成')
+        except:
+            print('代理IP写入失败')
+        finally:
+            f.close()
     print('有效ID ：{}'.format(["{}:{}".format(i['ip'],i['port']) for i in PROXY_IP_LIST]))
 
 
@@ -40,6 +49,19 @@ def get_proxy_ip(min_num=2):
     use = choice(PROXY_IP_LIST)
     # "122.241.191.96:4331"
     return "{}:{}".format(use['ip'],use['port'])
+
+
+def delete_ip(ip_port):
+    global PROXY_IP_LIST
+    if ip_port is None:
+        pass
+    else:
+        ip = ip_port.split(':')[0]
+        l = len(PROXY_IP_LIST)
+        for i in range(l):
+            if PROXY_IP_LIST[i]['ip'] == ip:
+                del PROXY_IP_LIST[i]
+                break
 
 
 def get_url_content(URL,HEADERS=({'User-Agent':

@@ -17,7 +17,7 @@ from random import random,randint,choice
 import json
 import re
 
-from proxy_ip import get_proxy_ip, get_url_content, init_browser
+from proxy_ip import delete_ip, get_proxy_ip, get_url_content, init_browser
 
 
 """
@@ -26,13 +26,13 @@ from proxy_ip import get_proxy_ip, get_url_content, init_browser
 market_dict = {'huawei':2,'xiaomi':3,'vivo':4,'oppo':5,'meizu':6,'应用宝':7,'baidu':8,'360':9,'豌豆荚':10}
 
 
-def get_app_info(URL, type='browser'):
+def get_app_info(URL, type='browser', retry_times=3):
     # URL = 'https://app.diandian.com/app/nlxiruxj218miqn/android'
     have = False
     times = 0
-    while have == False and times<3:
+    while have == False and times<retry_times:
         if type=='browser':
-            dom = get_url_html(URL)
+            dom, proxy_ip = get_url_html(URL)
             have = False if dom is None else True
         else:
             # webpage = requests.get(URL, headers=HEADERS,timeout=30)
@@ -44,6 +44,12 @@ def get_app_info(URL, type='browser'):
             times+=1
             print("{} 失败，重试：{}次".format(URL, times))
             time.sleep(5)
+            if times == retry_times:
+                # 达到重试次数后，删除代理IP，并使用driver重新请求一次
+                delete_ip(proxy_ip)
+                dom, proxy_ip = get_url_html(URL)
+                have = False if dom is None else True
+
     
     info = parse_app_info(dom) if have else {}
     return info
@@ -77,7 +83,7 @@ def get_url_html(URL):
         browser.get(URL)
     except WebDriverException as e:
         print(e.msg)
-        return None
+        return None, None
     
     try:
         browser.find_element_by_xpath('//div[@class="weixin-dialog"]/div[1]/i').click()
@@ -87,8 +93,14 @@ def get_url_html(URL):
     resp_text = browser.page_source
     #数据解析
     page_html = etree.HTML(resp_text)
+    try:
+        proxyip = browser.capabilities['proxy']['httpProxy']
+        print('ProxyIp = {}'.format(proxyip))
+    except KeyError as e:
+        print('未获得代理ip！')
+        proxyip = None
     browser.close()
-    return page_html
+    return page_html, proxyip
 
 
 def login_by_code(driver):
@@ -323,7 +335,7 @@ def parse_android_list(page_html, file_name):
     return data_list
 
 
-if __name__ == '__main__':# ['122.246.88.149:4313', '182.204.157.2:4331']
+if __name__ == '__main__':
     driver, wait = init_browser(headless=False,default_proxy=None)
 
     login_dd(driver, 'code')
