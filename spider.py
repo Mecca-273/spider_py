@@ -1,4 +1,3 @@
-from cmath import exp
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -9,12 +8,15 @@ from lxml import etree
 from bs4 import BeautifulSoup
 
 from urllib.request import quote
-import requests
+
 
 import time
-from random import random,randint
+from datetime import datetime
+from random import random,randint,choice
 import json
 import re
+
+from proxy_ip import get_proxy_ip, get_url_content, init_browser
 
 
 """
@@ -23,23 +25,17 @@ import re
 market_dict = {'huawei':2,'xiaomi':3,'vivo':4,'oppo':5,'meizu':6,'应用宝':7,'baidu':8,'360':9,'豌豆荚':10}
 
 
-  
-def get_app_info(browser, URL, type='browser'):
+def get_app_info(URL, type='browser'):
     # URL = 'https://app.diandian.com/app/nlxiruxj218miqn/android'
     if type=='browser':
-        dom = get_url_html(browser,URL)
+        dom = get_url_html(URL)
         have = True
     else:
-        HEADERS = ({'User-Agent':
-                    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 \
-                    (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36',\
-                    'Accept-Language': 'en-US, en;q=0.5'})
-        
         have = False
         times = 0
         while have == False and times<3:
-            webpage = requests.get(URL, headers=HEADERS,timeout=30)
-            soup = BeautifulSoup(webpage.content, "html.parser")
+            # webpage = requests.get(URL, headers=HEADERS,timeout=30)
+            soup = BeautifulSoup(get_url_content(URL), "html.parser")
             dom = etree.HTML(str(soup))
             have = len(dom.xpath('//*[@id="content_open"]/p/text()'))>0 & len(dom.xpath("//div[@class='out-box']/div[2]/div[1]/div[2]/div/div/div/a/text()"))>0
             if have == False:
@@ -73,7 +69,8 @@ def parse_app_info(dom):
     return info
 
 
-def get_url_html(browser,URL):
+def get_url_html(URL):
+    browser, _ = init_browser(False)
     browser.get(URL)
     try:
         browser.find_element_by_xpath('//div[@class="weixin-dialog"]/div[1]/i').click()
@@ -83,23 +80,11 @@ def get_url_html(browser,URL):
     resp_text = browser.page_source
     #数据解析
     page_html = etree.HTML(resp_text)
+    browser.close()
     return page_html
 
 
-def init_browser(headless=True):
-    # 创建Chrome的驱动对象
-    if headless:
-        option = webdriver.ChromeOptions()
-        option.add_argument("headless")
-        browser = webdriver.Chrome(chrome_options=option)
-    else:
-        browser = webdriver.Chrome()
-    # 用于滚动页面
-    wait=WebDriverWait(browser,30)
-    return browser, wait
-
-
-def login_dd(driver,login_type = 'mima'):
+def login_dd(driver,login_type='mima'):
     login = False
     try:
         print("通过cookies登录")
@@ -161,6 +146,8 @@ def login_dd(driver,login_type = 'mima'):
             driver.find_element_by_xpath('//input[@placeholder="输入密码"]').send_keys(code)
             # 点击登录按钮
             driver.find_element_by_css_selector('.login-btn').click()
+            # 避免cookie写入较慢
+            time.sleep(10)
 
         cookies = driver.get_cookies()    # 获取cookies
         f1 = open('cookie.txt', 'w')    #cookies存入文件JSON字符串
@@ -217,8 +204,6 @@ def scroll(browser, wait, times=15):
         browser.execute_script("window.scrollBy(0, 1000)")
         time.sleep(1)
     print('滚动结束')
-
-
 def search_by_url(browser, wait ,shop_id, key_words):
     url = 'https://app.diandian.com/search/android-{}-{}'.format(shop_id,key_words)
     print('访问搜索页面:{}'.format(url))
@@ -233,23 +218,52 @@ def search_by_url(browser, wait ,shop_id, key_words):
     return page_html
 
 
-def parse_android_list(browser, page_html):
+def get_file_lines_count(filename):
+    count = -1
+    import os
+    if os.path.exists(filename) == True:
+        for count,line in enumerate(open(filename,'rU')):
+            pass
+            count += 1
+    else:
+        count = 0
+    return count
+
+
+def parse_android_list(page_html, file_name):
     print('开始解析列表页内容：')
     data_list = []
+    subset = []
     trs = page_html.xpath('//*[@class="table-container"]/tr/td[3]/div/div/div/div/div/div/div/a')
+    ads = page.xpath('//*[@class="table-container"]/tr/td[2]/div')
     dates = page_html.xpath('//*[@class="table-container"]/tr/td[7]/div/div/a/text()')
     print('当前列表共【{}】个'.format(len(trs)))
     base_url = 'https://app.diandian.com'
-    for i in range(len(trs)):
-        print('开始解析第【{}】个'.format(i+1))
+    index = 0
+    c = get_file_lines_count(file_name.format(kw))
+    print('=========历史已采集【{}】个=========='.format(c))
+    for i in range(c,len(trs)):
+        print('历史已采集【{}】个，开始解析第【{}】个'.format(c, i+1))
         # 通过url处理明细数据采集 # 应用明细数据
         # https://app.diandian.com/app/nlxiruxj218miqn/android
         app_info_url = trs[i].attrib['href']
-        info = get_app_info(browser, base_url + app_info_url)
+        
+        info = get_app_info(base_url + app_info_url)
         info['name'] = trs[i].text
         info['url'] = app_info_url
         info['update'] = dates[i]
-        data_list.append(json.dumps(info))
+        try:
+            info['ad'] = ads[0].xpath('span/text()')
+        except:
+            info['ad'] = '-1'
+        subset.append(json.dumps(info))
+        if len(subset)%10 == 0 or i==len(trs)-1:
+            with open(file_name.format(kw),'a+') as f:
+                f.write('\n'.join(subset))
+                index += 1
+                print('写入临时批次[{}]'.format(index))
+                data_list = data_list + subset
+                subset.clear()
         # print(info)
         time.sleep(round(random(),1)+randint(5,10))
     return data_list
@@ -259,13 +273,13 @@ if __name__ == '__main__':
     driver, wait = init_browser(headless=False)
 
     login_dd(driver, 'code')
-    keywords = ["huawei:理财"]
+    keywords = ["huawei:汽车"]
     file_name = './datas/applist-{}'
     for kw in keywords:
         kws = kw.split(':')
         page = search_by_url(driver, wait, market_dict[kws[0]], quote(kws[1], safe=";/?:@&=+$,", encoding="utf-8"))
-        datas = parse_android_list(driver, page)
-        with open(file_name.format(kw),'a+') as f:
+        datas = parse_android_list(page, file_name)
+        with open(file_name.format(kw) + '_all','a+') as f:
             f.write('\n'.join(datas))
 
     time.sleep(3)
