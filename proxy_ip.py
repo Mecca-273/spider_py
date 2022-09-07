@@ -56,13 +56,13 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-def init_browser(headless=True):
+def init_browser(headless=True, default_proxy=None):
     """
     初始化指定代理IP浏览器
     
     @param headless 是否启用浏览器界面
     """
-    PROXY = get_proxy_ip()
+    PROXY = get_proxy_ip() if default_proxy is None else default_proxy
     # 设置代理IP
     webdriver.DesiredCapabilities.CHROME['proxy'] = {
         "httpProxy": PROXY,

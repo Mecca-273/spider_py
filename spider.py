@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import WebDriverException
 from lxml import etree
 
 
@@ -29,7 +30,10 @@ def get_app_info(URL, type='browser'):
     # URL = 'https://app.diandian.com/app/nlxiruxj218miqn/android'
     if type=='browser':
         dom = get_url_html(URL)
-        have = True
+        if dom is None:
+            have = False
+        else:
+            have = True
     else:
         have = False
         times = 0
@@ -71,7 +75,12 @@ def parse_app_info(dom):
 
 def get_url_html(URL):
     browser, _ = init_browser(False)
-    browser.get(URL)
+    try:
+        browser.get(URL)
+    except WebDriverException as e:
+        print(e.msg)
+        return None
+    
     try:
         browser.find_element_by_xpath('//div[@class="weixin-dialog"]/div[1]/i').click()
     except:
@@ -254,6 +263,25 @@ def get_file_lines_count(filename):
     return count
 
 
+def exists_app_list(filename):
+    """
+    补充app
+    """
+    import os
+    exists = {}
+    if os.path.exists(filename) == True:
+        file = open(filename)
+        while True:
+            text_line = file.readline()
+            if len(text_line)>10:
+                appinfo = json.loads(text_line.strip('\n'))
+                if 'bundleid' in appinfo.keys():
+                    exists[appinfo['url'].split('/')[2]]=appinfo
+            else:
+                break
+    return exists
+
+
 def parse_android_list(page_html, file_name):
     print('开始解析列表页内容：')
     data_list = []
@@ -264,27 +292,31 @@ def parse_android_list(page_html, file_name):
     print('当前列表共【{}】个'.format(len(trs)))
     base_url = 'https://app.diandian.com'
     index = 0
-    c = get_file_lines_count(file_name.format(kw))
-    print('=========历史已采集【{}】个=========='.format(c))
-    for i in range(c,len(trs)):
-        print('历史已采集【{}】个，开始解析第【{}】个'.format(c, i+1))
+    # c = get_file_lines_count(file_name.format(kw))
+    exists = exists_app_list(file_name.format(kw))
+    # 将中间数据转为最终结果list
+    data_list = list(exists.values())
+    print('=========历史已采集【{}】个=========='.format(len(data_list)))
+    for i in range(len(trs)):
         # 通过url处理明细数据采集 # 应用明细数据
         # https://app.diandian.com/app/nlxiruxj218miqn/android
         app_info_url = trs[i].attrib['href']
-        
+        if app_info_url.split('/')[2] in exists.keys():
+            continue
+        print('开始解析第【{}】个,url ={} '.format(i+1,app_info_url))
         info = get_app_info(base_url + app_info_url)
         info['name'] = trs[i].text
         info['url'] = app_info_url
         info['update'] = dates[i]
         try:
-            info['ad'] = ads[0].xpath('span/text()')
+            info['ad'] = ads[i].xpath('span/text()')
         except:
             info['ad'] = '-1'
         subset.append(json.dumps(info, ensure_ascii=False))
 
-        if len(subset)%10 == 0 or i==len(trs)-1:
+        if len(subset)%5 == 0 or i==len(trs)-1:
             with open(file_name.format(kw),'a+') as f:
-                f.write('\n'.join(subset))
+                f.write('\n'.join(subset)+'\n')
                 index += 1
                 print('写入临时批次[{}]'.format(index))
                 data_list = data_list + subset
@@ -293,8 +325,8 @@ def parse_android_list(page_html, file_name):
     return data_list
 
 
-if __name__ == '__main__':
-    driver, wait = init_browser(headless=False)
+if __name__ == '__main__':# ['122.246.88.149:4313', '182.204.157.2:4331']
+    driver, wait = init_browser(headless=False,default_proxy=None)
 
     login_dd(driver, 'code')
     keywords = ["huawei:汽车"]
