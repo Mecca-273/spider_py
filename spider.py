@@ -84,7 +84,46 @@ def get_url_html(URL):
     return page_html
 
 
+def login_by_code(driver):
+    mobile = input('请输入手机号：')
+    # 输入手机号
+    driver.find_element_by_css_selector('.sms-login-input').find_element_by_tag_name('input').send_keys(mobile)
+
+    # 点击获取验证码
+    driver.find_element_by_css_selector('.el-button').click()
+    # 这个地方可以对接自动输入验证码功能，目前手工输入
+    code = input('请输入验证码：')
+    driver.find_element_by_xpath('//input[@placeholder="请输入手机验证码"]').send_keys(code)
+    # 点击登录按钮
+    driver.find_element_by_css_selector('.login-btn').click()
+
+
+def login_by_pwd(browser):
+    # 密码登录跳转app后会退出
+    browser.get('https://www.diandian.com/login')
+    browser.find_element_by_css_selector('.login-type').click()
+    cur_type = browser.find_element_by_css_selector('.login-type.active')
+    if cur_type.text=='快捷登录':
+        browser.find_element_by_xpath('//div[@class="login-type"]').click()
+    
+    mobile = ''
+    # 输入手机号
+    browser.find_element_by_xpath('//input[@placeholder="请输入手机号"]').send_keys(mobile)
+    time.sleep(2.3)
+    # 这个地方可以对接自动输入验证码功能，目前手工输入
+    code = ''
+    browser.find_element_by_xpath('//input[@placeholder="输入密码"]').send_keys(code)
+    # 点击登录按钮
+    browser.find_element_by_css_selector('.login-btn').click()
+
+
 def login_dd(driver,login_type='mima'):
+    """
+    完成登录，优先使用cookie登录，否则通过验证码登录，密码登录界面跳转后会退出
+
+    @param driver : webdriver
+    @param login_type: 登录方式，目前mima密码方式不可用，仅支持验证码登录
+    """
     login = False
     try:
         print("通过cookies登录")
@@ -103,10 +142,6 @@ def login_dd(driver,login_type='mima'):
         time.sleep(5)
     except:
         print("cookie处理失败")
-
-    # 加载页面
-    # driver.get("https://app.diandian.com")
-    # close_pop(driver)
     
     if login == False:
         # 点击登录注册
@@ -118,37 +153,12 @@ def login_dd(driver,login_type='mima'):
         driver.find_element_by_css_selector('.login-type').click()
 
         if login_type == 'code':
-            mobile = input('请输入手机号：')
-            # 输入手机号
-            driver.find_element_by_css_selector('.sms-login-input').find_element_by_tag_name('input').send_keys(mobile)
-
-            # 点击获取验证码
-            driver.find_element_by_css_selector('.el-button').click()
-            # 这个地方可以对接自动输入验证码功能，目前手工输入
-            code = input('请输入验证码：')
-            driver.find_element_by_xpath('//input[@placeholder="请输入手机验证码"]').send_keys(code)
-            # 点击登录按钮
-            driver.find_element_by_css_selector('.login-btn').click()
+            login_by_code(driver)
         else:
-            # 密码登录跳转app后会退出
-            driver.get('https://www.diandian.com/login')
-            driver.find_element_by_css_selector('.login-type').click()
-            cur_type = driver.find_element_by_css_selector('.login-type.active')
-            if cur_type.text=='快捷登录':
-                driver.find_element_by_xpath('//div[@class="login-type"]').click()
-            
-            mobile = ''
-            # 输入手机号
-            driver.find_element_by_xpath('//input[@placeholder="请输入手机号"]').send_keys(mobile)
-            time.sleep(2.3)
-            # 这个地方可以对接自动输入验证码功能，目前手工输入
-            code = ''
-            driver.find_element_by_xpath('//input[@placeholder="输入密码"]').send_keys(code)
-            # 点击登录按钮
-            driver.find_element_by_css_selector('.login-btn').click()
-            # 避免cookie写入较慢
-            time.sleep(10)
-
+            login_by_pwd(driver)
+        
+        # 避免cookie写入较慢    
+        time.sleep(10)
         cookies = driver.get_cookies()    # 获取cookies
         f1 = open('cookie.txt', 'w')    #cookies存入文件JSON字符串
         f1.write(json.dumps(cookies))
@@ -156,6 +166,9 @@ def login_dd(driver,login_type='mima'):
 
 
 def close_pop(browser):
+    """
+    关闭页面弹窗
+    """
     #  会有一个弹窗，需要关闭 
     try:
         # 首页
@@ -169,6 +182,7 @@ def close_pop(browser):
             a = None
     if a:
         a.click()
+
 
 def search_in_page(driver):
     # 转入搜索页
@@ -204,7 +218,12 @@ def scroll(browser, wait, times=15):
         browser.execute_script("window.scrollBy(0, 1000)")
         time.sleep(1)
     print('滚动结束')
+
+
 def search_by_url(browser, wait ,shop_id, key_words):
+    """
+    通过商城ID及关键词进行应用搜索
+    """
     url = 'https://app.diandian.com/search/android-{}-{}'.format(shop_id,key_words)
     print('访问搜索页面:{}'.format(url))
     # 直接跳转搜索结果页
@@ -219,6 +238,11 @@ def search_by_url(browser, wait ,shop_id, key_words):
 
 
 def get_file_lines_count(filename):
+    """
+    获得文件行数
+
+    @param filename: 文件名
+    """
     count = -1
     import os
     if os.path.exists(filename) == True:
@@ -256,7 +280,8 @@ def parse_android_list(page_html, file_name):
             info['ad'] = ads[0].xpath('span/text()')
         except:
             info['ad'] = '-1'
-        subset.append(json.dumps(info))
+        subset.append(json.dumps(info, ensure_ascii=False))
+
         if len(subset)%10 == 0 or i==len(trs)-1:
             with open(file_name.format(kw),'a+') as f:
                 f.write('\n'.join(subset))
@@ -264,7 +289,6 @@ def parse_android_list(page_html, file_name):
                 print('写入临时批次[{}]'.format(index))
                 data_list = data_list + subset
                 subset.clear()
-        # print(info)
         time.sleep(round(random(),1)+randint(5,10))
     return data_list
 

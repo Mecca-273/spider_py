@@ -4,6 +4,9 @@ from random import choice
 import requests
 
 
+PROXY_IP_LIST=[]
+
+
 def init_proxy_pool(history):
     """
     初始化代理IP池
@@ -17,10 +20,11 @@ def init_proxy_pool(history):
     print('有效ID ：{}'.format(["{}:{}".format(i['ip'],i['port']) for i in PROXY_IP_LIST]))
 
 
-PROXY_IP_LIST=[]
-
-
 def get_proxy_ip(min_num=2):
+    """
+    从代理IP池随机获取一个可用IP，若不足最小个数，将进行重新获取
+    @param min_num IP池保留有效IP最小个数
+    """
     global PROXY_IP_LIST
     avalible = []
     for ip_info in PROXY_IP_LIST:
@@ -42,6 +46,9 @@ def get_url_content(URL,HEADERS=({'User-Agent':
                     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 \
                     (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36',\
                     'Accept-Language': 'en-US, en;q=0.5'}), TIME_OUT=30):
+    """
+    通过get方式获取URL返回结果（不支持异步请求）
+    """
     webpage = requests.get(URL, headers=HEADERS,timeout=TIME_OUT)
     return webpage.content
 
@@ -50,6 +57,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 
 def init_browser(headless=True):
+    """
+    初始化指定代理IP浏览器
+    
+    @param headless 是否启用浏览器界面
+    """
     PROXY = get_proxy_ip()
     # 设置代理IP
     webdriver.DesiredCapabilities.CHROME['proxy'] = {
@@ -68,6 +80,7 @@ def init_browser(headless=True):
     # 用于滚动页面
     wait=WebDriverWait(browser,30)
     return browser, wait
+
 
 # for i in range(100):
 #     driver, wait = init_browser()
