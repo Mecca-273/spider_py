@@ -5,9 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import WebDriverException
 from lxml import etree
 
-
 from bs4 import BeautifulSoup
-
 from urllib.request import quote
 
 
@@ -17,7 +15,7 @@ from random import random,randint,choice
 import json
 import re
 
-from proxy_ip import delete_ip, get_proxy_ip, get_url_content, init_browser
+from proxy_ip import delete_ip, get_url_content, init_browser
 
 
 """
@@ -339,17 +337,16 @@ if __name__ == '__main__':
     driver, wait = init_browser(headless=False,default_proxy=None)
 
     login_dd(driver, 'code')
-    keywords = ["huawei:汽车"]
+    keywords = ["xiaomi:汽车"]
     file_name = './datas/applist-{}'
+    print("Start Time: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     for kw in keywords:
         kws = kw.split(':')
         page = search_by_url(driver, wait, market_dict[kws[0]], quote(kws[1], safe=";/?:@&=+$,", encoding="utf-8"))
         datas = parse_android_list(page, file_name)
         with open(file_name.format(kw) + '_all','a+') as f:
             f.write('\n'.join(datas))
-
-    time.sleep(3)
-
+    print("Successful: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     # 关闭当前窗口
     driver.close()
     # 退出浏览器

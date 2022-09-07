@@ -14,16 +14,17 @@ def init_proxy_pool(history):
     """
     global PROXY_IP_LIST
     # proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103890&port=1&ts=1&lb=4&pb=4&gm=4&regions='
-    proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103995&port=1&ts=1&lb=1&pb=4&gm=4&regions='
+    proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=5&type=2&pack=103995&port=1&ts=1&lb=1&pb=4&gm=4&regions='
     json_str = get_url_content(proxy_url)
     proxy = json.loads(json_str)
     PROXY_IP_LIST = proxy['data'] + history
     with open('proxy_ip_history.txt','a+') as f:
         try:
-            f.write("\n".join([json.dumps(i) for i in PROXY_IP_LIST]+'\n'))
+            f.write("\n".join([json.dumps(i) for i in proxy['data']])+'\n')
             print('代理IP写入完成')
-        except:
+        except Exception as e:
             print('代理IP写入失败')
+            print(e)
         finally:
             f.close()
     print('有效ID ：{}'.format(["{}:{}".format(i['ip'],i['port']) for i in PROXY_IP_LIST]))
