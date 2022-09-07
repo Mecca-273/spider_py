@@ -28,24 +28,22 @@ market_dict = {'huawei':2,'xiaomi':3,'vivo':4,'oppo':5,'meizu':6,'应用宝':7,'
 
 def get_app_info(URL, type='browser'):
     # URL = 'https://app.diandian.com/app/nlxiruxj218miqn/android'
-    if type=='browser':
-        dom = get_url_html(URL)
-        if dom is None:
-            have = False
+    have = False
+    times = 0
+    while have == False and times<3:
+        if type=='browser':
+            dom = get_url_html(URL)
+            have = False if dom is None else True
         else:
-            have = True
-    else:
-        have = False
-        times = 0
-        while have == False and times<3:
             # webpage = requests.get(URL, headers=HEADERS,timeout=30)
             soup = BeautifulSoup(get_url_content(URL), "html.parser")
             dom = etree.HTML(str(soup))
             have = len(dom.xpath('//*[@id="content_open"]/p/text()'))>0 & len(dom.xpath("//div[@class='out-box']/div[2]/div[1]/div[2]/div/div/div/a/text()"))>0
-            if have == False:
-                times+=1
-                print("{} 失败，重试：{}次".format(URL, times))
-                time.sleep(5)
+        
+        if have == False:
+            times+=1
+            print("{} 失败，重试：{}次".format(URL, times))
+            time.sleep(5)
     
     info = parse_app_info(dom) if have else {}
     return info
@@ -295,7 +293,7 @@ def parse_android_list(page_html, file_name):
     # c = get_file_lines_count(file_name.format(kw))
     exists = exists_app_list(file_name.format(kw))
     # 将中间数据转为最终结果list
-    data_list = list(exists.values())
+    data_list = [json.dumps(i, ensure_ascii=False) for i in list(exists.values())]
     print('=========历史已采集【{}】个=========='.format(len(data_list)))
     for i in range(len(trs)):
         # 通过url处理明细数据采集 # 应用明细数据
