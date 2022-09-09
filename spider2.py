@@ -64,14 +64,16 @@ def parse_app_info(dom):
         info["down_link"] = dom.xpath("//div[@class='out-box']/div[2]/div[1]/div[2]/div/div/div/a/@href")[0]
         info["score"] = pattern.sub("",dom.xpath("//div[@class='out-box']/div[2]/div[2]/div[1]/a/text()")[0])
         info["join_score"] = pattern.sub("",dom.xpath("//div[@class='out-box']/div[2]/div[2]/a/text()")[0])
-        info["developer"] = dom.xpath("//div[@class='out-box']/div[2]/div[5]/div[2]/div[1]/div[1]/div[1]/a/text()")[0]
-        info["developer_host"] = dom.xpath("//div[@class='out-box']/div[2]/div[5]/div[2]/div[1]/div[1]/div[1]/a/@href")[0]
         info["download_count"] = pattern.sub("",dom.xpath("//div[@class='out-box']/div[2]/div[6]/div[1]/a/text()")[0])
         info["comment"] = dom.xpath('//*[@id="content_open"]/p/text()')[0]
         info["tags"] = ','.join([i.text for i in dom.xpath("//div[@class='tag-content']/span")])
+        info["developer"] = dom.xpath("//div[@class='out-box']/div[2]/div[5]/div[2]/div[1]/div[1]/div[1]/a/text()")[0]
+        info["developer_host"] = dom.xpath("//div[@class='out-box']/div[2]/div[5]/div[2]/div[1]/div[1]/div[1]/a/@href")[0]
+        
+        
     except:
-        print("有部分信息为空")
-        time.sleep(15)
+        print("有部分信息为空,休息5s")
+        time.sleep(5)
     return info
 
 
@@ -271,7 +273,7 @@ def get_file_lines_count(filename):
     return count
 
 
-def exists_app_list(filename):
+def exists_app_list(filename, exists_key='bundleid'):
     """
     补充app
     """
@@ -283,36 +285,35 @@ def exists_app_list(filename):
             text_line = file.readline()
             if len(text_line)>10:
                 appinfo = json.loads(text_line.strip('\n'))
-                if 'bundleid' in appinfo.keys():
+                if exists_key in appinfo.keys():
                     exists[appinfo['url'].split('/')[2]]=appinfo
             else:
                 break
     return exists
 
 
-def parse_android_list(page_html, file_name):
+def parse_android_list(page_html, file_name,kw):
     print('开始解析列表页内容：')
     data_list = []
     subset = []
     trs = page_html.xpath('//*[@class="table-container"]/tr/td[3]/div/div/div/div/div/div/div/a')
-    ads = page.xpath('//*[@class="table-container"]/tr/td[2]/div')
+    ads = page_html.xpath('//*[@class="table-container"]/tr/td[2]/div')
     dates = page_html.xpath('//*[@class="table-container"]/tr/td[7]/div/div/a/text()')
     print('当前列表共【{}】个'.format(len(trs)))
-    base_url = 'https://app.diandian.com'
+    # base_url = 'https://app.diandian.com'
     index = 0
-    # c = get_file_lines_count(file_name.format(kw))
-    exists = exists_app_list(file_name.format(kw))
+    # 已采集的app列表
+    exists_list = exists_app_list(file_name.format(kw), 'name')
     # 将中间数据转为最终结果list
-    data_list = [json.dumps(i, ensure_ascii=False) for i in list(exists.values())]
+    data_list = [json.dumps(i, ensure_ascii=False) for i in list(exists_list.values())]
     print('=========历史已采集【{}】个=========='.format(len(data_list)))
     for i in range(len(trs)):
         # 通过url处理明细数据采集 # 应用明细数据
         # https://app.diandian.com/app/nlxiruxj218miqn/android
         app_info_url = trs[i].attrib['href']
-        if app_info_url.split('/')[2] in exists.keys():
+        if app_info_url.split('/')[2] in exists_list.keys():
             continue
-        print('开始解析第【{}】个,url ={} '.format(i+1,app_info_url))
-        info = get_app_info(base_url + app_info_url)
+        info = {}
         info['name'] = trs[i].text
         info['url'] = app_info_url
         info['update'] = dates[i]
@@ -323,29 +324,84 @@ def parse_android_list(page_html, file_name):
         subset.append(json.dumps(info, ensure_ascii=False))
 
         if len(subset)%5 == 0 or i==len(trs)-1:
-            with open(file_name.format(kw),'a+') as f:
+            with open(file_name.format(kw), 'a+') as f:
                 f.write('\n'.join(subset)+'\n')
                 index += 1
                 print('写入临时批次[{}]'.format(index))
                 data_list = data_list + subset
                 subset.clear()
-        time.sleep(round(random(),1)+randint(5,10))
+        # time.sleep(round(random(),1)+randint(4,6))
+    return data_list
+
+
+def get_appinfo_list(driver, file_name, kw):
+    
+    print("Start Time: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    kws = kw.split(':')
+    page = search_by_url(driver, wait, market_dict[kws[0]], quote(kws[1], safe=";/?:@&=+$,", encoding="utf-8"))
+    # page_list[kw] = page
+    datas = parse_android_list(page, file_name, kw)
+    # 覆盖原有列表
+    with open(file_name.format(kw) + '_all','w') as f:
+        f.write('\n'.join(datas))
+
+
+def get_detail(app_list, appinfo_file, kw):
+    subset = []
+    index = 0
+    # 关键词已采集的app明细
+    exists_detail_list = exists_app_list(appinfo_file.format(kw), exists_key='bundleid')
+    data_list = [json.dumps(i, ensure_ascii=False) for i in list(exists_detail_list.values())]
+    size = len(app_list.keys())
+    i = 0
+    # 遍历app列表
+    for appid in app_list.keys():
+        i += 1
+        if appid in exists_detail_list.keys():
+            continue
+        else:
+            base_info = app_list[appid]
+            app_info_url = base_info['url']
+            print('开始解析第【{}】个,url ={} '.format(i,app_info_url))
+            info = get_app_info(appinfo_base_url + app_info_url)
+            base_info.update(info)
+            subset.append(json.dumps(base_info, ensure_ascii=False))
+            
+            if len(subset)%5 == 0 or i==size:
+                with open(appinfo_file.format(kw), 'a+') as f:
+                    f.write('\n'.join(subset)+'\n')
+                    index += 1
+                    print('写入临时批次[{}]'.format(index))
+                    data_list = data_list + subset
+                    subset.clear()
     return data_list
 
 
 if __name__ == '__main__':
-    driver, wait = init_browser(headless=False,default_proxies=None)
-
-    login_dd(driver, 'code')
-    keywords = ["xiaomi:汽车"]
-    file_name = './datas/applist-{}'
+    get_list = False
+    keywords = ["huawei:理财","huawei:旅行","huawei:旅游","huawei:美甲","huawei:按摩","huawei:摩托车"]
+    list_file_name = './datas/appinfo-list-{}'
+    appinfo_file_name = './datas/applist-{}'
+    appinfo_base_url = 'https://app.diandian.com'
+    driver = None
+    if get_list == True:
+        for kw in keywords:
+            if driver is None:
+                driver, wait = init_browser(headless=False,default_proxies=['123.144.50.191:4335', '106.110.195.208:4356'])
+                login_dd(driver, 'code')
+            get_appinfo_list(driver, list_file_name, kw)
+            print('[{}]list 获取成功'.format(kw))
+    else:
+        print('不采集列表页，无需登录！')
     print("Start Time: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     for kw in keywords:
-        kws = kw.split(':')
-        page = search_by_url(driver, wait, market_dict[kws[0]], quote(kws[1], safe=";/?:@&=+$,", encoding="utf-8"))
-        datas = parse_android_list(page, file_name)
-        with open(file_name.format(kw) + '_all','a+') as f:
-            f.write('\n'.join(datas))
+        # 已采集的name列表
+        exists_list = exists_app_list(list_file_name.format(kw)+'_all', exists_key='name')
+        appinfo_all = get_detail(exists_list, appinfo_file_name, kw)
+        # 覆盖原有列表
+        with open(appinfo_file_name.format(kw) + '_all','w') as f:
+            f.write('\n'.join(appinfo_all))
+            print('【{}】 采集完成'.format(kw))
     print("Successful: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     # 关闭当前窗口
     driver.close()

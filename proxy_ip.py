@@ -5,29 +5,60 @@ import requests
 
 
 PROXY_IP_LIST=[]
+RETRY_PROXY_TIMES = 3
+RETRY_TIME = 0
 
 
-def init_proxy_pool(history):
+def get_url_content(URL,HEADERS=({'User-Agent':
+                    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 \
+                    (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36',\
+                    'Accept-Language': 'en-US, en;q=0.5'}), TIME_OUT=30):
+    """
+    通过get方式获取URL返回结果（不支持异步请求）
+    """
+    webpage = requests.get(URL, headers=HEADERS,timeout=TIME_OUT)
+    return webpage.content
+
+
+def taiyang_proxy():
+    # proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103890&port=1&ts=1&lb=4&pb=4&gm=4&regions='
+    proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103998&port=1&ts=1&lb=1&pb=45&gm=4&regions='
+    json_str = get_url_content(proxy_url)
+    proxy = json.loads(json_str)
+    if 'msg' in proxy.keys() and proxy['msg']=='您的该套餐已经过期了':
+        print(proxy['msg'],'程序终止')
+        exit(0)
+    return [{"ip":i['ip'],"port":i['port'], "expire_time":i['expire_time']} for i in proxy['data']]
+
+
+def init_proxy_pool(history, proxy_source=taiyang_proxy):
     """
     初始化代理IP池
     @param history: 历史存留可用IP list
     """
     global PROXY_IP_LIST
-    # proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103890&port=1&ts=1&lb=4&pb=4&gm=4&regions='
-    proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=5&type=2&pack=103995&port=1&ts=1&lb=1&pb=4&gm=4&regions='
-    json_str = get_url_content(proxy_url)
-    proxy = json.loads(json_str)
-    PROXY_IP_LIST = proxy['data'] + history
-    with open('proxy_ip_history.txt','a+') as f:
-        try:
-            f.write("\n".join([json.dumps(i) for i in proxy['data']])+'\n')
-            print('代理IP写入完成')
-        except Exception as e:
-            print('代理IP写入失败')
-            print(e)
-        finally:
-            f.close()
-    print('有效ID ：{}'.format(["{}:{}".format(i['ip'],i['port']) for i in PROXY_IP_LIST]))
+    ip_list = proxy_source()
+    PROXY_IP_LIST = ip_list + history
+    if len(PROXY_IP_LIST) > 0:
+        with open('proxy_ip_history.txt','a+') as f:
+            try:
+                f.write("\n".join([json.dumps(i) for i in ip_list])+'\n')
+                print('代理IP写入完成')
+            except Exception as e:
+                print('代理IP写入失败')
+                print(e)
+            finally:
+                f.close()
+        print('有效ID ：{}'.format(["{}:{}".format(i['ip'],i['port']) for i in PROXY_IP_LIST]))
+    else:
+        print('代理IP获取失败')
+        global RETRY_TIME
+        if RETRY_TIME < RETRY_PROXY_TIMES:
+            RETRY_TIME +=1 
+            init_proxy_pool([])
+        else:
+            print("{}次获取代理IP失败，程序终止".format(RETRY_TIME))
+            exit(0)
 
 
 def get_proxy_ip(min_num=2):
@@ -65,27 +96,17 @@ def delete_ip(ip_port):
                 break
 
 
-def get_url_content(URL,HEADERS=({'User-Agent':
-                    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 \
-                    (KHTML, like Gecko) Chrome/44.0.2403.157 Safari/537.36',\
-                    'Accept-Language': 'en-US, en;q=0.5'}), TIME_OUT=30):
-    """
-    通过get方式获取URL返回结果（不支持异步请求）
-    """
-    webpage = requests.get(URL, headers=HEADERS,timeout=TIME_OUT)
-    return webpage.content
-
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-def init_browser(headless=True, default_proxy=None):
+def init_browser(headless=True, default_proxies=None):
     """
     初始化指定代理IP浏览器
     
     @param headless 是否启用浏览器界面
     """
-    PROXY = get_proxy_ip() if default_proxy is None else default_proxy
+    PROXY = get_proxy_ip() if default_proxies is None else choice(default_proxies)
     # 设置代理IP
     webdriver.DesiredCapabilities.CHROME['proxy'] = {
         "httpProxy": PROXY,
@@ -97,9 +118,10 @@ def init_browser(headless=True, default_proxy=None):
     option.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36")
     if headless == True:
-        option.add_argument("headless")
-        option.add_argument("disable-gpu")
+        option.add_argument("--headless")
     browser = webdriver.Chrome(options=option)
+    # 隐式等待30s
+    browser.implicitly_wait(30)
     # 用于滚动页面
     wait=WebDriverWait(browser,30)
     return browser, wait
