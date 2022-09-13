@@ -22,7 +22,7 @@ def get_url_content(URL,HEADERS=({'User-Agent':
 
 def taiyang_proxy():
     # proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103890&port=1&ts=1&lb=4&pb=4&gm=4&regions='
-    proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103998&port=1&ts=1&lb=1&pb=45&gm=4&regions='
+    proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103998&port=1&ts=1&lb=1&pb=4&gm=4&regions='
     json_str = get_url_content(proxy_url)
     proxy = json.loads(json_str)
     if 'msg' in proxy.keys() and proxy['msg']=='您的该套餐已经过期了':
@@ -98,6 +98,7 @@ def delete_ip(ip_port):
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import WebDriverException
 
 
 def init_browser(headless=True, default_proxies=None):
@@ -119,7 +120,12 @@ def init_browser(headless=True, default_proxies=None):
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36")
     if headless == True:
         option.add_argument("--headless")
-    browser = webdriver.Chrome(options=option)
+    try:
+        browser = webdriver.Chrome(options=option)
+    except WebDriverException as e:
+        print(e.msg)
+        print('重试一次初始化Chrome...')
+        browser = webdriver.Chrome(options=option)
     # 隐式等待30s
     browser.implicitly_wait(30)
     # 用于滚动页面

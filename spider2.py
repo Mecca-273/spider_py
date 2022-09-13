@@ -378,8 +378,10 @@ def get_detail(app_list, appinfo_file, kw):
 
 
 if __name__ == '__main__':
-    get_list = False
-    keywords = ["huawei:理财","huawei:旅行","huawei:旅游","huawei:美甲","huawei:按摩","huawei:摩托车"]
+    get_list = True
+    # 已采 ： "huawei:汽车","xiaomi:汽车",huawei:理财","huawei:旅行","huawei:美甲","huawei:按摩",
+    # list已采："huawei:旅游","huawei:二手车", 
+    keywords = [ "huawei:摩托车", 'xiaomi:理财']
     list_file_name = './datas/appinfo-list-{}'
     appinfo_file_name = './datas/applist-{}'
     appinfo_base_url = 'https://app.diandian.com'
@@ -387,14 +389,19 @@ if __name__ == '__main__':
     if get_list == True:
         for kw in keywords:
             if driver is None:
-                driver, wait = init_browser(headless=False,default_proxies=['123.144.50.191:4335', '106.110.195.208:4356'])
+                driver, wait = init_browser(headless=False,default_proxies=['117.32.1.250:4317', '110.230.211.200:4331'])
                 login_dd(driver, 'code')
             get_appinfo_list(driver, list_file_name, kw)
-            print('[{}]list 获取成功'.format(kw))
+            print('[{}]list 获取完成'.format(kw))
+        # 关闭当前窗口
+        driver.close()
+        # 退出浏览器
+        driver.quit()
     else:
         print('不采集列表页，无需登录！')
     print("Start Time: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     for kw in keywords:
+        print('开始采集【{}】 ！'.format(kw))
         # 已采集的name列表
         exists_list = exists_app_list(list_file_name.format(kw)+'_all', exists_key='name')
         appinfo_all = get_detail(exists_list, appinfo_file_name, kw)
@@ -403,7 +410,3 @@ if __name__ == '__main__':
             f.write('\n'.join(appinfo_all))
             print('【{}】 采集完成'.format(kw))
     print("Successful: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    # 关闭当前窗口
-    driver.close()
-    # 退出浏览器
-    driver.quit()
