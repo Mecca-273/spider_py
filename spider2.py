@@ -1,19 +1,14 @@
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
+import time
+from datetime import datetime
+import json
+import re
+
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import WebDriverException
 from lxml import etree
-
 from bs4 import BeautifulSoup
 from urllib.request import quote
-
-
-import time
-from datetime import datetime
-from random import random,randint,choice
-import json
-import re
 
 from proxy_ip import delete_ip, get_url_content, init_browser
 
@@ -25,6 +20,10 @@ market_dict = {'huawei':2,'xiaomi':3,'vivo':4,'oppo':5,'meizu':6,'应用宝':7,'
 
 
 def get_app_info(URL, type='browser', retry_times=3):
+    """
+        获取app应用详情页的内容
+            默认使用浏览器方式，若获取失败则默认重试3次，每次休眠5s
+    """
     # URL = 'https://app.diandian.com/app/nlxiruxj218miqn/android'
     have = False
     times = 0
@@ -69,8 +68,6 @@ def parse_app_info(dom):
         info["tags"] = ','.join([i.text for i in dom.xpath("//div[@class='tag-content']/span")])
         info["developer"] = dom.xpath("//div[@class='out-box']/div[2]/div[5]/div[2]/div[1]/div[1]/div[1]/a/text()")[0]
         info["developer_host"] = dom.xpath("//div[@class='out-box']/div[2]/div[5]/div[2]/div[1]/div[1]/div[1]/a/@href")[0]
-        
-        
     except:
         print("有部分信息为空,休息5s")
         time.sleep(5)
@@ -78,6 +75,9 @@ def parse_app_info(dom):
 
 
 def get_url_html(URL):
+    """
+        通过浏览器访问URL
+    """
     browser, _ = init_browser(False)
     try:
         proxyip = browser.capabilities['proxy']['httpProxy']
@@ -94,7 +94,7 @@ def get_url_html(URL):
     try:
         browser.find_element_by_xpath('//div[@class="weixin-dialog"]/div[1]/i').click()
     except:
-        print('没有广告弹窗')
+        print('没有微信广告弹窗')
     #获取网页源码
     resp_text = browser.page_source
     #数据解析
@@ -104,6 +104,9 @@ def get_url_html(URL):
 
 
 def login_by_code(driver):
+    """
+    通过验证码登录，当前可用登录方式！
+    """
     mobile = input('请输入手机号：')
     # 输入手机号
     driver.find_element_by_css_selector('.sms-login-input').find_element_by_tag_name('input').send_keys(mobile)
@@ -118,7 +121,11 @@ def login_by_code(driver):
 
 
 def login_by_pwd(browser):
-    # 密码登录跳转app后会退出
+    """
+    通过账号密码登录
+        点点应用平台，当前通过密码登录跳转app页面后会退出登录，暂不可用
+    """
+    # 
     browser.get('https://www.diandian.com/login')
     browser.find_element_by_css_selector('.login-type').click()
     cur_type = browser.find_element_by_css_selector('.login-type.active')
@@ -136,9 +143,10 @@ def login_by_pwd(browser):
     browser.find_element_by_css_selector('.login-btn').click()
 
 
-def login_dd(driver,login_type='mima'):
+def login_dd(driver,login_type='code'):
     """
-    完成登录，优先使用cookie登录，否则通过验证码登录，密码登录界面跳转后会退出
+    完成登录
+        优先使用cookie登录，否则通过验证码登录，密码登录界面跳转后会退出
 
     @param driver : webdriver
     @param login_type: 登录方式，目前mima密码方式不可用，仅支持验证码登录
@@ -203,7 +211,10 @@ def close_pop(browser):
         a.click()
 
 
-def search_in_page(driver):
+def search_in_page(driver,kw):
+    """
+        通过页面点击流程进入搜索结果页，暂未使用
+    """
     # 转入搜索页
     driver.get("https://app.diandian.com/search")
     
@@ -212,7 +223,7 @@ def search_in_page(driver):
     # 选择安卓榜单
     driver.find_element_by_css_selector('.dd-android-logo-16').click()
     # 输入理财 关键字
-    driver.find_element_by_xpath('//*[@id="__layout"]/div/section/main/div/div[1]/div/div/div[2]/div[3]/div/div/div[1]/input').send_keys('理财')
+    driver.find_element_by_xpath('//*[@id="__layout"]/div/section/main/div/div[1]/div/div/div[2]/div[3]/div/div/div[1]/input').send_keys(kw)
 
 
 def scroll(browser, wait, times=15):
@@ -233,7 +244,7 @@ def scroll(browser, wait, times=15):
             retry_times += 1
     # total = wait.until(EC.presence_of_element_located((By.XPATH,'//*[@class="table-container"]/tr')))
 
-    for i in range(times):
+    for _ in range(times):
         browser.execute_script("window.scrollBy(0, 1000)")
         time.sleep(1)
     print('滚动结束')
@@ -265,7 +276,7 @@ def get_file_lines_count(filename):
     count = -1
     import os
     if os.path.exists(filename) == True:
-        for count,line in enumerate(open(filename,'rU')):
+        for count, _ in enumerate(open(filename,'rU')):
             pass
             count += 1
     else:
@@ -273,9 +284,11 @@ def get_file_lines_count(filename):
     return count
 
 
-def exists_app_list(filename, exists_key='bundleid'):
+def exists_list(filename, exists_key='bundleid'):
     """
-    补充app
+    获取已采集完成的app列表
+
+    @param exists_key： 表示用于判断是否存在的字段名，默认是bundleid
     """
     import os
     exists = {}
@@ -293,6 +306,9 @@ def exists_app_list(filename, exists_key='bundleid'):
 
 
 def parse_android_list(page_html, file_name,kw):
+    """
+        解析应用列表页展示信息
+    """
     print('开始解析列表页内容：')
     data_list = []
     subset = []
@@ -300,18 +316,15 @@ def parse_android_list(page_html, file_name,kw):
     ads = page_html.xpath('//*[@class="table-container"]/tr/td[2]/div')
     dates = page_html.xpath('//*[@class="table-container"]/tr/td[7]/div/div/a/text()')
     print('当前列表共【{}】个'.format(len(trs)))
-    # base_url = 'https://app.diandian.com'
     index = 0
     # 已采集的app列表
-    exists_list = exists_app_list(file_name.format(kw), 'name')
+    exists_name_list = exists_list(file_name.format(kw), 'name')
     # 将中间数据转为最终结果list
-    data_list = [json.dumps(i, ensure_ascii=False) for i in list(exists_list.values())]
+    data_list = [json.dumps(i, ensure_ascii=False) for i in list(exists_name_list.values())]
     print('=========历史已采集【{}】个=========='.format(len(data_list)))
     for i in range(len(trs)):
-        # 通过url处理明细数据采集 # 应用明细数据
-        # https://app.diandian.com/app/nlxiruxj218miqn/android
         app_info_url = trs[i].attrib['href']
-        if app_info_url.split('/')[2] in exists_list.keys():
+        if app_info_url.split('/')[2] in exists_name_list.keys():
             continue
         info = {}
         info['name'] = trs[i].text
@@ -334,12 +347,13 @@ def parse_android_list(page_html, file_name,kw):
     return data_list
 
 
-def get_appinfo_list(driver, file_name, kw):
-    
+def get_appinfo_list(driver, wait,file_name, kw):
+    """
+        根据关键词采集搜索页应用列表页面基础信息
+    """
     print("Start Time: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     kws = kw.split(':')
     page = search_by_url(driver, wait, market_dict[kws[0]], quote(kws[1], safe=";/?:@&=+$,", encoding="utf-8"))
-    # page_list[kw] = page
     datas = parse_android_list(page, file_name, kw)
     # 覆盖原有列表
     with open(file_name.format(kw) + '_all','w') as f:
@@ -347,10 +361,13 @@ def get_appinfo_list(driver, file_name, kw):
 
 
 def get_detail(app_list, appinfo_file, kw):
+    """
+        逐个采集应用列表下的每个应用明细信息，并写入临时文件中
+    """
     subset = []
     index = 0
     # 关键词已采集的app明细
-    exists_detail_list = exists_app_list(appinfo_file.format(kw), exists_key='bundleid')
+    exists_detail_list = exists_list(appinfo_file.format(kw), exists_key='bundleid')
     data_list = [json.dumps(i, ensure_ascii=False) for i in list(exists_detail_list.values())]
     size = len(app_list.keys())
     i = 0
@@ -377,36 +394,58 @@ def get_detail(app_list, appinfo_file, kw):
     return data_list
 
 
-if __name__ == '__main__':
-    get_list = True
-    # 已采 ： "huawei:汽车","xiaomi:汽车",huawei:理财","huawei:旅行","huawei:美甲","huawei:按摩",
-    # list已采："huawei:旅游","huawei:二手车", 
-    keywords = [ "huawei:摩托车", 'xiaomi:理财']
-    list_file_name = './datas/appinfo-list-{}'
-    appinfo_file_name = './datas/applist-{}'
-    appinfo_base_url = 'https://app.diandian.com'
-    driver = None
-    if get_list == True:
-        for kw in keywords:
-            if driver is None:
-                driver, wait = init_browser(headless=False,default_proxies=['117.32.1.250:4317', '110.230.211.200:4331'])
-                login_dd(driver, 'code')
-            get_appinfo_list(driver, list_file_name, kw)
-            print('[{}]list 获取完成'.format(kw))
-        # 关闭当前窗口
-        driver.close()
-        # 退出浏览器
-        driver.quit()
-    else:
-        print('不采集列表页，无需登录！')
+def get_app_detail_by_words(kw_list, list_file, app_info_file) :
+    """
+        根据关键词list，从各关键词对应applist中获取链接，并采集其明细信息
+    """
     print("Start Time: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    for kw in keywords:
+    for kw in kw_list:
         print('开始采集【{}】 ！'.format(kw))
         # 已采集的name列表
-        exists_list = exists_app_list(list_file_name.format(kw)+'_all', exists_key='name')
-        appinfo_all = get_detail(exists_list, appinfo_file_name, kw)
+        exists_app_list = exists_list(list_file.format(kw)+'_all', exists_key='name')
+        appinfo_all = get_detail(exists_app_list, app_info_file, kw)
         # 覆盖原有列表
-        with open(appinfo_file_name.format(kw) + '_all','w') as f:
+        with open(app_info_file.format(kw) + '_all','w') as f:
             f.write('\n'.join(appinfo_all))
             print('【{}】 采集完成'.format(kw))
     print("Successful: "+datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+
+def get_app_list_by_words(kw_list,list_file):
+    """
+    根据关键词list,采集每个关键词列表页的基础信息
+    """
+    # driver = None
+    for kw in kw_list:
+        if driver is None:
+            driver, wait = init_browser(headless=False,default_proxies=None)
+            login_dd(driver, 'code')
+        get_appinfo_list(driver, wait, list_file, kw)
+        print('[{}]list 获取完成'.format(kw))
+    # 关闭当前窗口
+    driver.close()
+    # 退出浏览器
+    driver.quit()
+
+
+if __name__ == '__main__':
+    is_get_list = False
+    is_get_detail = True
+    # 已采 ： "huawei:汽车","xiaomi:汽车",huawei:理财","huawei:旅行","huawei:美甲","huawei:按摩",,'xiaomi:理财','huawei:教育','huawei:装修','huawei:房产','huawei:家居',
+    # list已采："huawei:旅游","huawei:二手车", "huawei:摩托车" 'huawei:健身',
+    # 待采列表： 
+    keywords = ['huawei:母婴','huawei:健身', "huawei:旅游","huawei:二手车", "huawei:摩托车"]
+    list_file_name = './datas/appinfo-list-{}'
+    appinfo_file_name = './datas/applist-{}'
+    appinfo_base_url = 'https://app.diandian.com'
+
+    if is_get_list == True:
+        get_app_list_by_words(keywords, list_file_name)
+    else:
+        print('不采集列表页，无需登录！')
+    if is_get_detail == True:
+        get_app_detail_by_words(keywords,list_file_name,appinfo_file_name)
+    else:
+        print('不采集明细数据，终止程序！')    
+        exit(0)
+    
