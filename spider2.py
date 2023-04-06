@@ -434,7 +434,7 @@ if __name__ == '__main__':
     # 已采 ： "huawei:汽车","xiaomi:汽车","huawei:机票",huawei:理财","huawei:旅行","huawei:美甲","huawei:按摩",,'xiaomi:理财','huawei:教育','huawei:装修','huawei:房产','huawei:家居', 'huawei:健身',"huawei:旅游","huawei:二手车",'huawei:母婴', "huawei:摩托车"
     # list已采： 
     # 待采列表：
-    keywords = []
+    keywords = ["huawei:保险"]
     list_file_name = './datas/appinfo-list-{}'
     appinfo_file_name = './datas/applist-{}'
     appinfo_base_url = 'https://app.diandian.com'

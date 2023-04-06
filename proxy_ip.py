@@ -70,6 +70,7 @@ def taiyang_proxy():
     """
     # proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103890&port=1&ts=1&lb=4&pb=4&gm=4&regions='
     proxy_url = 'http://http.tiqu.alibabaapi.com/getip3?num=2&type=2&pack=103998&port=1&ts=1&lb=1&pb=4&gm=4&regions='
+    proxy_url = 'http://http.tiqu.alibabaapi.com/getip?num=2&type=2&pack=103998&port=1&ts=1&lb=1&pb=4&regions='
     json_str = get_url_content(proxy_url)
     proxy = json.loads(json_str)
     if 'msg' in proxy.keys() and proxy['msg']=='您的该套餐已经过期了':
